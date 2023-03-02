@@ -7,6 +7,10 @@ import (
 
 	"github.com/akgupta-47/auth-gofib/db"
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type SignedDetails struct {
@@ -21,6 +25,7 @@ type SignedDetails struct {
 var userCollection = db.GetUserCollection()
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 
+// claims is the payload
 func GenerateAllTokens(email string, firstName string, lastName string, userType string, uid string) (signedToken string, signedRefreshToken string, err error) {
 	claims := &SignedDetails{
 		Email:      email,
@@ -52,4 +57,26 @@ func GenerateAllTokens(email string, firstName string, lastName string, userType
 	}
 
 	return token, refreshToken, err
+}
+
+func UpdateAllTokens(c *fiber.Ctx, signedToken string, refreshToken string, userId string) {
+	var updatedObject primitive.D
+
+	updatedObject = append(updatedObject, bson.E{Key: "token", Value: signedToken})
+	updatedObject = append(updatedObject, bson.E{Key: "refreshToken", Value: refreshToken})
+	Updated_at, _ := time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	updatedObject = append(updatedObject, bson.E{Key: "updated_at", Value: Updated_at})
+
+	upsert := true
+	filter := bson.M{"user_id": userId}
+	opt := options.UpdateOptions{
+		Upsert: &upsert,
+	}
+
+	_, err := userCollection.UpdateOne(c.Context(), filter, bson.D{{Key: "$set", Value: updatedObject}}, &opt)
+
+	if err != nil {
+		log.Panic(err)
+	}
+	return
 }
