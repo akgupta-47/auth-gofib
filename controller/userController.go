@@ -3,7 +3,7 @@ package controller
 import (
 	"fmt"
 	"log"
-	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/akgupta-47/auth-gofib/db"
@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -43,22 +44,22 @@ func Signup(c *fiber.Ctx) error {
 	user := new(models.User)
 
 	if err := c.BodyParser(user); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
 	}
 
 	validationErr := validate.Struct(user)
 	if validationErr != nil {
-		return c.Status(http.StatusBadRequest).JSON(models.ErrorJson{Error: validationErr.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: validationErr.Error()})
 	}
 
 	count, err := userCollection.CountDocuments(c.Context(), bson.M{"email": user.Email})
 	if err != nil {
 		log.Panic(err)
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: "Error while counting the documents!!"})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "Error while counting the documents!!"})
 	}
 
 	if count > 0 {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: "Email already exists!!"})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "Email already exists!!"})
 	}
 
 	password := HashPassword(*user.Password)
@@ -74,9 +75,9 @@ func Signup(c *fiber.Ctx) error {
 
 	resultInsertionNumber, insertionErr := userCollection.InsertOne(c.Context(), user)
 	if insertionErr != nil {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: "User Item was not created!!"})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "User Item was not created!!"})
 	}
-	return c.Status(http.StatusOK).JSON(resultInsertionNumber)
+	return c.Status(fiber.StatusOK).JSON(resultInsertionNumber)
 }
 
 func Login(c *fiber.Ctx) error {
@@ -85,40 +86,81 @@ func Login(c *fiber.Ctx) error {
 
 	// while testing check what happens if empty email is sent
 	if err := c.BodyParser(user); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
 	}
 
 	err := userCollection.FindOne(c.Context(), bson.M{"email": user.Email}).Decode(&foundUser)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: "email or password incorrect"})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "email or password incorrect"})
 	}
 
 	passwordIsValid, msg := VerifyPassword(*user.Password, *foundUser.Password)
 	if !passwordIsValid {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: msg})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: msg})
 	}
 
 	if foundUser.Email == nil {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: "user not found!!"})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "user not found!!"})
 	}
 	token, refreshToken, _ := helpers.GenerateAllTokens(*foundUser.Email, *foundUser.First_name, *foundUser.Last_name, *foundUser.User_type, foundUser.User_id)
 	helpers.UpdateAllTokens(c, token, refreshToken, foundUser.User_id)
 
 	err = userCollection.FindOne(c.Context(), bson.M{"user_id": foundUser.User_id}).Decode(&foundUser)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: err.Error()})
 	}
 
-	return c.Status(http.StatusOK).JSON(foundUser)
+	return c.Status(fiber.StatusOK).JSON(foundUser)
 }
 
-func GetUsers()
+func GetUsers(c *fiber.Ctx) error {
+	if err := helpers.CheckUserType(c, "ADMIN"); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
+	}
+
+	recordsPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
+	if err != nil || recordsPerPage < 1 {
+		recordsPerPage = 10
+	}
+
+	page, err := strconv.Atoi(c.Query("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	startIndex := (page - 1) * recordsPerPage
+	startIndex, err = strconv.Atoi(c.Query("startIndex"))
+
+	matchStage := bson.D{{"$match", bson.D{{}}}}
+	groupStage := bson.D{{"$group", bson.D{
+		{"_id", bson.D{{"_id", "null"}}},
+		{"total_count", bson.D{{"$sum", 1}}},
+		{"data", bson.D{{"$push", "$$ROOT"}}}}}}
+	projectStage := bson.D{
+		{"$project", bson.D{
+			{"_id", 0},
+			{"total_count", 1},
+			{"user_items", bson.D{{"$slice", []interface{}{"$data", startIndex, recordsPerPage}}}}}}}
+
+	result, err := userCollection.Aggregate(c.Context(), mongo.Pipeline{matchStage, groupStage, projectStage})
+
+	if err != nil {
+		c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "error while listing user items"})
+	}
+
+	var allusers []bson.M
+	if err = result.All(c.Context(), &allusers); err != nil {
+		log.Fatal(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(allusers[0])
+}
 
 func GetUser(c *fiber.Ctx) error {
 	userId := c.Params("user_id")
 
 	if err := helpers.MatchUserTypeToUid(c, userId); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
 	}
 
 	var user models.User
@@ -126,8 +168,8 @@ func GetUser(c *fiber.Ctx) error {
 	err := userCollection.FindOne(c.Context(), query).Decode(&user)
 
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(models.ErrorJson{Error: err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: err.Error()})
 	}
 
-	return c.Status(http.StatusOK).JSON(user)
+	return c.Status(fiber.StatusOK).JSON(user)
 }
