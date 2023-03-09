@@ -23,7 +23,7 @@ type SignedDetails struct {
 	jwt.StandardClaims
 }
 
-var userCollection = db.GetUserCollection()
+// var userCollection = db.GetUserCollection()
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 
 // claims is the payload
@@ -32,26 +32,28 @@ func GenerateAllTokens(email string, firstName string, lastName string, userType
 		Email:      email,
 		First_name: firstName,
 		Last_name:  lastName,
-		User_type:  userType,
 		Uid:        uid,
+		User_type:  userType,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(24)).Unix(),
 		},
 	}
 
-	refreshCalims := &SignedDetails{
+	refreshClaims := &SignedDetails{
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(168)).Unix(),
 		},
 	}
 
-	token, err := jwt.NewWithClaims(jwt.SigningMethodES256, claims).SignedString([]byte(SECRET_KEY))
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(SECRET_KEY))
+
 	if err != nil {
 		log.Panic(err)
 		return
 	}
 
-	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodES256, refreshCalims).SignedString([]byte(SECRET_KEY))
+	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(SECRET_KEY))
+
 	if err != nil {
 		log.Panic(err)
 		return
@@ -91,6 +93,7 @@ func ValidateToken(signedToken string) (claims *SignedDetails, msg string) {
 }
 
 func UpdateAllTokens(c *fiber.Ctx, signedToken string, refreshToken string, userId string) {
+	var userCollection = db.GetUserCollection()
 	var updatedObject primitive.D
 
 	updatedObject = append(updatedObject, bson.E{Key: "token", Value: signedToken})

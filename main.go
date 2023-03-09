@@ -8,13 +8,15 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 
 	"github.com/akgupta-47/auth-gofib/db"
-	routes "github.com/akgupta-47/auth-gofib/routes"
+	"github.com/akgupta-47/auth-gofib/routes"
 )
 
 func main() {
 	if err := db.ConnectDB(); err != nil {
 		log.Fatal(err)
 	}
+	// var userCollection = db.GetUserCollection()
+	// fmt.Println(*userCollection)
 	port := os.Getenv("PORT")
 
 	if port == "" {

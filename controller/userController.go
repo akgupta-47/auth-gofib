@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/akgupta-47/auth-gofib/db"
-	helpers "github.com/akgupta-47/auth-gofib/helpers"
+	"github.com/akgupta-47/auth-gofib/helpers"
 	"github.com/akgupta-47/auth-gofib/models"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -17,7 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var userCollection = db.GetUserCollection()
+// var userCollection = db.Mgi.Db.Collection("user")
 var validate = validator.New()
 
 func HashPassword(password string) string {
@@ -41,6 +41,7 @@ func VerifyPassword(userPassword string, providedPassword string) (bool, string)
 }
 
 func Signup(c *fiber.Ctx) error {
+	var userCollection = db.GetUserCollection()
 	user := new(models.User)
 
 	if err := c.BodyParser(user); err != nil {
@@ -52,16 +53,18 @@ func Signup(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: validationErr.Error()})
 	}
 
+	// count, err := userCollection.CountDocuments(c.Context(), bson.M{"email": user.Email})
+
 	count, err := userCollection.CountDocuments(c.Context(), bson.M{"email": user.Email})
 	if err != nil {
 		log.Panic(err)
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "Error while counting the documents!!"})
 	}
-
+	// fmt.Println(count)
 	if count > 0 {
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: "Email already exists!!"})
 	}
-
+	// return nil
 	password := HashPassword(*user.Password)
 	user.Password = &password
 
@@ -81,6 +84,7 @@ func Signup(c *fiber.Ctx) error {
 }
 
 func Login(c *fiber.Ctx) error {
+	var userCollection = db.GetUserCollection()
 	user := new(models.User)
 	foundUser := new(models.User)
 
@@ -114,6 +118,7 @@ func Login(c *fiber.Ctx) error {
 }
 
 func GetUsers(c *fiber.Ctx) error {
+	var userCollection = db.GetUserCollection()
 	if err := helpers.CheckUserType(c, "ADMIN"); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorJson{Error: err.Error()})
 	}
@@ -157,6 +162,7 @@ func GetUsers(c *fiber.Ctx) error {
 }
 
 func GetUser(c *fiber.Ctx) error {
+	var userCollection = db.GetUserCollection()
 	userId := c.Params("user_id")
 
 	if err := helpers.MatchUserTypeToUid(c, userId); err != nil {

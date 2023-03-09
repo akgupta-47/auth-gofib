@@ -17,7 +17,7 @@ type MongoInstance struct {
 	Db     *mongo.Database
 }
 
-const dbName = "go-fib"
+const dbName = "authgo"
 
 var Mgi MongoInstance
 
