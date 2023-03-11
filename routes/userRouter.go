@@ -10,4 +10,5 @@ func UserRoutes(app *fiber.App) {
 	app.Use(middleware.Authenticate)
 	app.Get("/users", controller.GetUsers)
 	app.Get("/users/:user_id", controller.GetUser)
+	app.Get("/users/test", controller.TestRoute)
 }

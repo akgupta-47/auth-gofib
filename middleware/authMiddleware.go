@@ -1,29 +1,32 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/akgupta-47/auth-gofib/helpers"
 	"github.com/gofiber/fiber/v2"
 )
 
 func Authenticate(c *fiber.Ctx) error {
-	clientToken := c.GetReqHeaders()
-	if clientToken["token"] == "" {
+	ReqHeaders := c.GetReqHeaders()
+	clientToken := strings.Split(ReqHeaders["Authorization"], " ")[1]
+	if clientToken == "" {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "no authorization header provided!!",
 		})
 	}
 
-	claims, err := helpers.ValidateToken(clientToken["token"])
+	claims, err := helpers.ValidateToken(clientToken)
 	if err != "" {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err,
+			"error": "error validating token:" + err,
 		})
 	}
-	c.Set("email", claims.Email)
-	c.Set("firat_name", claims.First_name)
-	c.Set("last_name", claims.Last_name)
-	c.Set("uid", claims.Uid)
-	c.Set("user_type", claims.User_type)
-
+	c.Locals("email", claims.Email)
+	c.Locals("firat_name", claims.First_name)
+	c.Locals("last_name", claims.Last_name)
+	c.Locals("uid", claims.Uid)
+	c.Locals("user_type", claims.User_type)
+	// fmt.Println(c)
 	return c.Next()
 }

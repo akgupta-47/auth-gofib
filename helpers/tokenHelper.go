@@ -84,11 +84,12 @@ func ValidateToken(signedToken string) (claims *SignedDetails, msg string) {
 	}
 
 	if claims.ExpiresAt < time.Now().Local().Unix() {
-		msg = fmt.Sprintf("token is expired")
+		msg = fmt.Sprintf("token is expiredd")
 		msg = err.Error()
 		return
 	}
 
+	fmt.Println("i reached here", claims, msg)
 	return claims, msg
 }
 
@@ -97,7 +98,7 @@ func UpdateAllTokens(c *fiber.Ctx, signedToken string, refreshToken string, user
 	var updatedObject primitive.D
 
 	updatedObject = append(updatedObject, bson.E{Key: "token", Value: signedToken})
-	updatedObject = append(updatedObject, bson.E{Key: "refreshToken", Value: refreshToken})
+	updatedObject = append(updatedObject, bson.E{Key: "refresh_token", Value: refreshToken})
 	Updated_at, _ := time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 	updatedObject = append(updatedObject, bson.E{Key: "updated_at", Value: Updated_at})
 

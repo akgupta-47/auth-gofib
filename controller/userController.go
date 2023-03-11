@@ -20,6 +20,12 @@ import (
 // var userCollection = db.Mgi.Db.Collection("user")
 var validate = validator.New()
 
+func TestRoute(c *fiber.Ctx) error {
+	utype := c.Get("user_type")
+	fmt.Println(utype)
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{})
+}
+
 func HashPassword(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
