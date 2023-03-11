@@ -120,6 +120,14 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorJson{Error: err.Error()})
 	}
 
+	cookie := fiber.Cookie{
+		Name:     "auth",
+		Value:    token,
+		HTTPOnly: true,
+	}
+
+	c.Cookie(&cookie)
+
 	return c.Status(fiber.StatusOK).JSON(foundUser)
 }
 
