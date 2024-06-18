@@ -2,7 +2,7 @@
 name: Golang Docker
 
 on:
-  pill_request:
+  pull_request:
     branches:
       - master
 
